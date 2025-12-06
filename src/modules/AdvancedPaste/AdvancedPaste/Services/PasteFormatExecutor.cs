@@ -3,21 +3,23 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 
 using AdvancedPaste.Helpers;
 using AdvancedPaste.Models;
+using AdvancedPaste.Services.CustomActions;
 using Microsoft.PowerToys.Telemetry;
 using Windows.ApplicationModel.DataTransfer;
 
 namespace AdvancedPaste.Services;
 
-public sealed class PasteFormatExecutor(IKernelService kernelService, ICustomTextTransformService customTextTransformService) : IPasteFormatExecutor
+public sealed class PasteFormatExecutor(IKernelService kernelService, ICustomActionTransformService customActionTransformService) : IPasteFormatExecutor
 {
     private readonly IKernelService _kernelService = kernelService;
-    private readonly ICustomTextTransformService _customTextTransformService = customTextTransformService;
+    private readonly ICustomActionTransformService _customActionTransformService = customActionTransformService;
 
-    public async Task<DataPackage> ExecutePasteFormatAsync(PasteFormat pasteFormat, PasteActionSource source)
+    public async Task<DataPackage> ExecutePasteFormatAsync(PasteFormat pasteFormat, PasteActionSource source, CancellationToken cancellationToken, IProgress<double> progress)
     {
         if (!pasteFormat.IsEnabled)
         {
@@ -34,9 +36,9 @@ public sealed class PasteFormatExecutor(IKernelService kernelService, ICustomTex
         return await Task.Run(async () =>
             pasteFormat.Format switch
             {
-                PasteFormats.KernelQuery => await _kernelService.TransformClipboardAsync(pasteFormat.Prompt, clipboardData, pasteFormat.IsSavedQuery),
-                PasteFormats.CustomTextTransformation => DataPackageHelpers.CreateFromText(await _customTextTransformService.TransformTextAsync(pasteFormat.Prompt, await clipboardData.GetTextAsync())),
-                _ => await TransformHelpers.TransformAsync(format, clipboardData),
+                PasteFormats.KernelQuery => await _kernelService.TransformClipboardAsync(pasteFormat.Prompt, clipboardData, pasteFormat.IsSavedQuery, cancellationToken, progress),
+                PasteFormats.CustomTextTransformation => DataPackageHelpers.CreateFromText((await _customActionTransformService.TransformTextAsync(pasteFormat.Prompt, await clipboardData.GetClipboardTextOrThrowAsync(cancellationToken), cancellationToken, progress))?.Content ?? string.Empty),
+                _ => await TransformHelpers.TransformAsync(format, clipboardData, cancellationToken, progress),
             });
     }
 

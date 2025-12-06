@@ -112,12 +112,12 @@ namespace MouseWithoutBorders.Class
             uint scanCode = 0;
 
             // http://msdn.microsoft.com/en-us/library/ms644967(VS.85).aspx
-            if ((kd.dwFlags & (int)Common.LLKHF.UP) == (int)Common.LLKHF.UP)
+            if ((kd.dwFlags & (int)WM.LLKHF.UP) == (int)WM.LLKHF.UP)
             {
                 dwFlags = NativeMethods.KEYEVENTF.KEYUP;
             }
 
-            if ((kd.dwFlags & (int)Common.LLKHF.EXTENDED) == (int)Common.LLKHF.EXTENDED)
+            if ((kd.dwFlags & (int)WM.LLKHF.EXTENDED) == (int)WM.LLKHF.EXTENDED)
             {
                 dwFlags |= NativeMethods.KEYEVENTF.EXTENDEDKEY;
             }
@@ -162,10 +162,10 @@ namespace MouseWithoutBorders.Class
             uint rv = 0;
             NativeMethods.INPUT mouse_input = default;
 
-            long w65535 = (Common.DesktopBounds.Right - Common.DesktopBounds.Left) * 65535 / Common.ScreenWidth;
-            long h65535 = (Common.DesktopBounds.Bottom - Common.DesktopBounds.Top) * 65535 / Common.ScreenHeight;
-            long l65535 = Common.DesktopBounds.Left * 65535 / Common.ScreenWidth;
-            long t65535 = Common.DesktopBounds.Top * 65535 / Common.ScreenHeight;
+            long w65535 = (MachineStuff.DesktopBounds.Right - MachineStuff.DesktopBounds.Left) * 65535 / Common.ScreenWidth;
+            long h65535 = (MachineStuff.DesktopBounds.Bottom - MachineStuff.DesktopBounds.Top) * 65535 / Common.ScreenHeight;
+            long l65535 = MachineStuff.DesktopBounds.Left * 65535 / Common.ScreenWidth;
+            long t65535 = MachineStuff.DesktopBounds.Top * 65535 / Common.ScreenHeight;
             mouse_input.type = 0;
             long dx = (md.X * w65535 / 65535) + l65535;
             long dy = (md.Y * h65535 / 65535) + t65535;
@@ -173,41 +173,44 @@ namespace MouseWithoutBorders.Class
             mouse_input.mi.dy = (int)dy;
             mouse_input.mi.mouseData = md.WheelDelta;
 
-            if (md.dwFlags != Common.WM_MOUSEMOVE)
+            if (md.dwFlags != WM.WM_MOUSEMOVE)
             {
                 Logger.LogDebug($"InputSimulation.SendMouse: x = {md.X}, y = {md.Y}, WheelDelta = {md.WheelDelta}, dwFlags = {md.dwFlags}.");
             }
 
             switch (md.dwFlags)
             {
-                case Common.WM_MOUSEMOVE:
+                case WM.WM_MOUSEMOVE:
                     mouse_input.mi.dwFlags |= (int)(NativeMethods.MOUSEEVENTF.MOVE | NativeMethods.MOUSEEVENTF.ABSOLUTE);
                     break;
-                case Common.WM_LBUTTONDOWN:
+                case WM.WM_LBUTTONDOWN:
                     mouse_input.mi.dwFlags |= (int)NativeMethods.MOUSEEVENTF.LEFTDOWN;
                     break;
-                case Common.WM_LBUTTONUP:
+                case WM.WM_LBUTTONUP:
                     mouse_input.mi.dwFlags |= (int)NativeMethods.MOUSEEVENTF.LEFTUP;
                     break;
-                case Common.WM_RBUTTONDOWN:
+                case WM.WM_RBUTTONDOWN:
                     mouse_input.mi.dwFlags |= (int)NativeMethods.MOUSEEVENTF.RIGHTDOWN;
                     break;
-                case Common.WM_RBUTTONUP:
+                case WM.WM_RBUTTONUP:
                     mouse_input.mi.dwFlags |= (int)NativeMethods.MOUSEEVENTF.RIGHTUP;
                     break;
-                case Common.WM_MBUTTONDOWN:
+                case WM.WM_MBUTTONDOWN:
                     mouse_input.mi.dwFlags |= (int)NativeMethods.MOUSEEVENTF.MIDDLEDOWN;
                     break;
-                case Common.WM_MBUTTONUP:
+                case WM.WM_MBUTTONUP:
                     mouse_input.mi.dwFlags |= (int)NativeMethods.MOUSEEVENTF.MIDDLEUP;
                     break;
-                case Common.WM_MOUSEWHEEL:
+                case WM.WM_MOUSEWHEEL:
                     mouse_input.mi.dwFlags |= (int)NativeMethods.MOUSEEVENTF.WHEEL;
                     break;
-                case Common.WM_XBUTTONUP:
+                case WM.WM_MOUSEHWHEEL:
+                    mouse_input.mi.dwFlags |= (int)NativeMethods.MOUSEEVENTF.HWHEEL;
+                    break;
+                case WM.WM_XBUTTONUP:
                     mouse_input.mi.dwFlags |= (int)NativeMethods.MOUSEEVENTF.XUP;
                     break;
-                case Common.WM_XBUTTONDOWN:
+                case WM.WM_XBUTTONDOWN:
                     mouse_input.mi.dwFlags |= (int)NativeMethods.MOUSEEVENTF.XDOWN;
                     break;
 
@@ -221,9 +224,9 @@ namespace MouseWithoutBorders.Class
                 rv = SendInputEx(mouse_input);
             });
 
-            if (Common.MainFormVisible && !Common.IsDropping)
+            if (Common.MainFormVisible && !DragDrop.IsDropping)
             {
-                Common.MainFormDot();
+                Helper.MainFormDot();
             }
 
             return rv;
@@ -233,10 +236,10 @@ namespace MouseWithoutBorders.Class
         {
             NativeMethods.INPUT mouse_input = default;
 
-            long w65535 = (Common.DesktopBounds.Right - Common.DesktopBounds.Left) * 65535 / Common.ScreenWidth;
-            long h65535 = (Common.DesktopBounds.Bottom - Common.DesktopBounds.Top) * 65535 / Common.ScreenHeight;
-            long l65535 = Common.DesktopBounds.Left * 65535 / Common.ScreenWidth;
-            long t65535 = Common.DesktopBounds.Top * 65535 / Common.ScreenHeight;
+            long w65535 = (MachineStuff.DesktopBounds.Right - MachineStuff.DesktopBounds.Left) * 65535 / Common.ScreenWidth;
+            long h65535 = (MachineStuff.DesktopBounds.Bottom - MachineStuff.DesktopBounds.Top) * 65535 / Common.ScreenHeight;
+            long l65535 = MachineStuff.DesktopBounds.Left * 65535 / Common.ScreenWidth;
+            long t65535 = MachineStuff.DesktopBounds.Top * 65535 / Common.ScreenHeight;
             mouse_input.type = 0;
             long dx = (x * w65535 / 65535) + l65535;
             long dy = (y * h65535 / 65535) + t65535;
@@ -370,7 +373,7 @@ namespace MouseWithoutBorders.Class
         {
             eatKey = false;
 
-            if ((flags & (int)Common.LLKHF.UP) == (int)Common.LLKHF.UP)
+            if ((flags & (int)WM.LLKHF.UP) == (int)WM.LLKHF.UP)
             {
                 switch ((VK)vkCode)
                 {
@@ -407,7 +410,7 @@ namespace MouseWithoutBorders.Class
                     {
                         ResetModifiersState(Setting.Values.HotKeyLockMachine);
                         eatKey = true;
-                        Common.ReleaseAllKeys();
+                        InitAndCleanup.ReleaseAllKeys();
                         _ = NativeMethods.LockWorkStation();
                     }
                 }
@@ -439,7 +442,7 @@ namespace MouseWithoutBorders.Class
                         {
                             ctrlDown = altDown = false;
                             eatKey = true;
-                            Common.ReleaseAllKeys();
+                            InitAndCleanup.ReleaseAllKeys();
                         }
 
                         break;
@@ -449,7 +452,7 @@ namespace MouseWithoutBorders.Class
                         {
                             winDown = false;
                             eatKey = true;
-                            Common.ReleaseAllKeys();
+                            InitAndCleanup.ReleaseAllKeys();
                             uint rv = NativeMethods.LockWorkStation();
                             Logger.LogDebug("LockWorkStation returned " + rv.ToString(CultureInfo.CurrentCulture));
                         }

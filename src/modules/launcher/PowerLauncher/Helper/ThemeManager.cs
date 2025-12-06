@@ -3,13 +3,16 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
-using System.IO;
+using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
 using ManagedCommon;
 using Microsoft.Win32;
 using Wox.Infrastructure.Image;
 using Wox.Infrastructure.UserSettings;
+using Wox.Plugin.Logger;
 
 namespace PowerLauncher.Helper
 {
@@ -17,10 +20,14 @@ namespace PowerLauncher.Helper
     {
         private readonly PowerToysRunSettings _settings;
         private readonly MainWindow _mainWindow;
-        private ManagedCommon.Theme _currentTheme;
-        private bool _disposed;
+        private readonly ThemeHelper _themeHelper = new();
 
-        public ManagedCommon.Theme CurrentTheme => _currentTheme;
+        private bool _disposed;
+        private CancellationTokenSource _themeUpdateTokenSource;
+        private const int MaxRetries = 5;
+        private const int InitialDelayMs = 2000;
+
+        public Theme CurrentTheme { get; private set; }
 
         public event Common.UI.ThemeChangedHandler ThemeChanged;
 
@@ -40,23 +47,25 @@ namespace PowerLauncher.Helper
             }
         }
 
-        private void SetSystemTheme(ManagedCommon.Theme theme)
+        private void SetSystemTheme(Theme theme)
         {
-            _mainWindow.Background = OSVersionHelper.IsWindows11() is false ? SystemColors.WindowBrush : null;
+            _mainWindow.Background = !OSVersionHelper.IsWindows11() ? SystemColors.WindowBrush : null;
 
             // Need to disable WPF0001 since setting Application.Current.ThemeMode is experimental
             // https://learn.microsoft.com/en-us/dotnet/desktop/wpf/whats-new/net90#set-in-code
 #pragma warning disable WPF0001
-            Application.Current.ThemeMode = theme is ManagedCommon.Theme.Light ? ThemeMode.Light : ThemeMode.Dark;
-            if (theme is ManagedCommon.Theme.Dark or ManagedCommon.Theme.Light)
+            Application.Current.ThemeMode = theme == Theme.Light ? ThemeMode.Light : ThemeMode.Dark;
+#pragma warning restore WPF0001
+
+            if (theme is Theme.Dark or Theme.Light)
             {
                 if (!OSVersionHelper.IsWindows11())
                 {
                     // Apply background only on Windows 10
-                    // Windows theme does not work properly for dark and light mode so right now set the background color manual.
+                    // Windows theme does not work properly for dark and light mode so right now set the background color manually.
                     _mainWindow.Background = new SolidColorBrush
                     {
-                        Color = theme is ManagedCommon.Theme.Dark ? (Color)ColorConverter.ConvertFromString("#202020") : (Color)ColorConverter.ConvertFromString("#fafafa"),
+                        Color = (Color)ColorConverter.ConvertFromString(theme == Theme.Dark ? "#202020" : "#fafafa"),
                     };
                 }
             }
@@ -64,54 +73,121 @@ namespace PowerLauncher.Helper
             {
                 string styleThemeString = theme switch
                 {
-                    ManagedCommon.Theme.Light => "Themes/Light.xaml",
-                    ManagedCommon.Theme.Dark => "Themes/Dark.xaml",
-                    ManagedCommon.Theme.HighContrastOne => "Themes/HighContrast1.xaml",
-                    ManagedCommon.Theme.HighContrastTwo => "Themes/HighContrast2.xaml",
-                    ManagedCommon.Theme.HighContrastWhite => "Themes/HighContrastWhite.xaml",
-                    _ => "Themes/HighContrastBlack.xaml",
+                    Theme.HighContrastOne => "Themes/HighContrast1.xaml",
+                    Theme.HighContrastTwo => "Themes/HighContrast2.xaml",
+                    Theme.HighContrastWhite => "Themes/HighContrastWhite.xaml",
+                    Theme.HighContrastBlack => "Themes/HighContrastBlack.xaml",
+                    _ => "Themes/Light.xaml",
                 };
+
                 _mainWindow.Resources.MergedDictionaries.Clear();
                 _mainWindow.Resources.MergedDictionaries.Add(new ResourceDictionary
                 {
                     Source = new Uri(styleThemeString, UriKind.Relative),
                 });
-                ResourceDictionary test = new ResourceDictionary
-                {
-                    Source = new Uri(styleThemeString, UriKind.Relative),
-                };
+
                 if (OSVersionHelper.IsWindows11())
                 {
                     // Apply background only on Windows 11 to keep the same style as WPFUI
                     _mainWindow.Background = new SolidColorBrush
                     {
-                        Color = (Color)_mainWindow.FindResource("LauncherBackgroundColor"), // Use your DynamicResource key here
+                        Color = (Color)_mainWindow.FindResource("LauncherBackgroundColor"),
                     };
                 }
             }
 
             ImageLoader.UpdateIconPath(theme);
-            ThemeChanged?.Invoke(_currentTheme, theme);
-            _currentTheme = theme;
+            ThemeChanged?.Invoke(CurrentTheme, theme);
+            CurrentTheme = theme;
         }
 
+        /// <summary>
+        /// Updates the application's theme based on system settings and user preferences.
+        /// </summary>
+        /// <remarks>
+        /// This considers:
+        /// - Whether a High Contrast theme is active in Windows.
+        /// - The system-wide app mode preference (Light or Dark).
+        /// - The user's preference override for Light or Dark mode in the application settings.
+        /// </remarks>
         public void UpdateTheme()
         {
-            ManagedCommon.Theme newTheme = _settings.Theme;
-            ManagedCommon.Theme theme = ThemeExtensions.GetHighContrastBaseType();
-            if (theme != ManagedCommon.Theme.Light)
-            {
-                newTheme = theme;
-            }
-            else if (_settings.Theme == ManagedCommon.Theme.System)
-            {
-                newTheme = ThemeExtensions.GetCurrentTheme();
-            }
+            Theme newTheme = _themeHelper.DetermineTheme(_settings.Theme);
 
-            _mainWindow.Dispatcher.Invoke(() =>
+            // Cancel any existing theme update operation
+            _themeUpdateTokenSource?.Cancel();
+            _themeUpdateTokenSource?.Dispose();
+            _themeUpdateTokenSource = new CancellationTokenSource();
+
+            // Start theme update with retry logic in the background
+            _ = UpdateThemeWithRetryAsync(newTheme, _themeUpdateTokenSource.Token);
+        }
+
+        /// <summary>
+        /// Applies the theme with retry logic for desktop composition errors.
+        /// </summary>
+        /// <param name="theme">The theme to apply.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        private async Task UpdateThemeWithRetryAsync(Theme theme, CancellationToken cancellationToken)
+        {
+            var delayMs = 0;
+            const int maxAttempts = MaxRetries + 1;
+
+            for (var attempt = 1; attempt <= maxAttempts; attempt++)
             {
-                SetSystemTheme(newTheme);
-            });
+                try
+                {
+                    if (delayMs > 0)
+                    {
+                        await Task.Delay(delayMs, cancellationToken);
+                    }
+
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        Log.Debug("Theme update operation was cancelled.", typeof(ThemeManager));
+                        return;
+                    }
+
+                    await _mainWindow.Dispatcher.InvokeAsync(() =>
+                    {
+                        SetSystemTheme(theme);
+                    });
+
+                    if (attempt > 1)
+                    {
+                        Log.Info($"Successfully applied theme after {attempt - 1} retry attempt(s).", typeof(ThemeManager));
+                    }
+
+                    return;
+                }
+                catch (COMException ex) when (ExceptionHelper.IsRecoverableDwmCompositionException(ex))
+                {
+                    switch (attempt)
+                    {
+                        case 1:
+                            Log.Warn($"Desktop composition is disabled (HRESULT: 0x{ex.HResult:X}). Scheduling retries for theme update.", typeof(ThemeManager));
+                            delayMs = InitialDelayMs;
+                            break;
+                        case < maxAttempts:
+                            Log.Warn($"Retry {attempt - 1}/{MaxRetries} failed: Desktop composition still disabled. Retrying in {delayMs * 2}ms...", typeof(ThemeManager));
+                            delayMs *= 2;
+                            break;
+                        default:
+                            Log.Exception($"Failed to set theme after {MaxRetries} retry attempts. Desktop composition remains disabled.", ex, typeof(ThemeManager));
+                            break;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    Log.Debug("Theme update operation was cancelled.", typeof(ThemeManager));
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    Log.Exception($"Unexpected error during theme update (attempt {attempt}/{maxAttempts}): {ex.Message}", ex, typeof(ThemeManager));
+                    throw;
+                }
+            }
         }
 
         public void Dispose()
@@ -130,6 +206,8 @@ namespace PowerLauncher.Helper
             if (disposing)
             {
                 SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
+                _themeUpdateTokenSource?.Cancel();
+                _themeUpdateTokenSource?.Dispose();
             }
 
             _disposed = true;

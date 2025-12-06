@@ -480,6 +480,22 @@ namespace Microsoft.PowerToys.Settings.UI.Library
             }
         }
 
+        private bool cmdPal = true;
+
+        [JsonPropertyName("CmdPal")]
+        public bool CmdPal
+        {
+            get => cmdPal;
+            set
+            {
+                if (cmdPal != value)
+                {
+                    LogTelemetryEvent(value);
+                    cmdPal = value;
+                }
+            }
+        }
+
         private bool zoomIt;
 
         [JsonPropertyName("ZoomIt")]
@@ -492,6 +508,39 @@ namespace Microsoft.PowerToys.Settings.UI.Library
                 {
                     LogTelemetryEvent(value);
                     zoomIt = value;
+                    NotifyChange();
+                }
+            }
+        }
+
+        private bool cursorWrap; // defaulting to off
+
+        [JsonPropertyName("CursorWrap")]
+        public bool CursorWrap
+        {
+            get => cursorWrap;
+            set
+            {
+                if (cursorWrap != value)
+                {
+                    LogTelemetryEvent(value);
+                    cursorWrap = value;
+                }
+            }
+        }
+
+        private bool lightSwitch;
+
+        [JsonPropertyName("LightSwitch")]
+        public bool LightSwitch
+        {
+            get => lightSwitch;
+            set
+            {
+                if (lightSwitch != value)
+                {
+                    LogTelemetryEvent(value);
+                    lightSwitch = value;
                     NotifyChange();
                 }
             }

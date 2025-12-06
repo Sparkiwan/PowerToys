@@ -31,10 +31,12 @@ using System.Xml.Linq;
 using ManagedCommon;
 using Microsoft.PowerToys.Settings.UI.Library.Utilities;
 using Microsoft.PowerToys.Telemetry;
+using MouseWithoutBorders.Core;
 using Newtonsoft.Json;
 using StreamJsonRpc;
 
 using Logger = MouseWithoutBorders.Core.Logger;
+using SettingsHelper = Microsoft.PowerToys.Settings.UI.Library.Utilities.Helper;
 using Thread = MouseWithoutBorders.Core.Thread;
 
 [module: SuppressMessage("Microsoft.MSInternal", "CA904:DeclareTypesInMicrosoftOrSystemNamespace", Scope = "namespace", Target = "MouseWithoutBorders", Justification = "Dotnet port with style preservation")]
@@ -127,7 +129,7 @@ namespace MouseWithoutBorders.Class
                 {
                     if (args.Length > 2)
                     {
-                        Helper.UserLocalAppDataPath = args[2].Trim();
+                        SettingsHelper.UserLocalAppDataPath = args[2].Trim();
                     }
                 }
 
@@ -135,13 +137,13 @@ namespace MouseWithoutBorders.Class
 
                 if (firstArg != string.Empty)
                 {
-                    if (Common.CheckSecondInstance(Common.RunWithNoAdminRight))
+                    if (MachineStuff.CheckSecondInstance(Common.RunWithNoAdminRight))
                     {
                         Logger.Log("*** Second instance, exiting...");
                         return;
                     }
 
-                    string myDesktop = Common.GetMyDesktop();
+                    string myDesktop = WinAPI.GetMyDesktop();
 
                     if (firstArg.Equals("winlogon", StringComparison.OrdinalIgnoreCase))
                     {
@@ -165,7 +167,7 @@ namespace MouseWithoutBorders.Class
                 }
                 else
                 {
-                    if (Common.CheckSecondInstance(true))
+                    if (MachineStuff.CheckSecondInstance(true))
                     {
                         Logger.Log("*** Second instance, exiting...");
                         return;
@@ -233,8 +235,8 @@ namespace MouseWithoutBorders.Class
                 _ = Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
                 Application.SetCompatibleTextRenderingDefault(false);
 
-                Common.Init();
-                Common.WndProcCounter++;
+                InitAndCleanup.Init();
+                Core.Helper.WndProcCounter++;
 
                 var formScreen = new FrmScreen();
 
@@ -301,20 +303,20 @@ namespace MouseWithoutBorders.Class
             {
                 Setting.Values.PauseInstantSaving = true;
 
-                Common.ClearComputerMatrix();
+                MachineStuff.ClearComputerMatrix();
                 Setting.Values.MyKey = securityKey;
-                Common.MyKey = securityKey;
-                Common.MagicNumber = Common.Get24BitHash(Common.MyKey);
-                Common.MachineMatrix = new string[Common.MAX_MACHINE] { pcName.Trim().ToUpper(CultureInfo.CurrentCulture), Common.MachineName.Trim(), string.Empty, string.Empty };
+                Encryption.MyKey = securityKey;
+                Encryption.MagicNumber = Encryption.Get24BitHash(Encryption.MyKey);
+                MachineStuff.MachineMatrix = new string[MachineStuff.MAX_MACHINE] { pcName.Trim().ToUpper(CultureInfo.CurrentCulture), Common.MachineName.Trim(), string.Empty, string.Empty };
 
-                string[] machines = Common.MachineMatrix;
-                Common.MachinePool.Initialize(machines);
-                Common.UpdateMachinePoolStringSetting();
+                string[] machines = MachineStuff.MachineMatrix;
+                MachineStuff.MachinePool.Initialize(machines);
+                MachineStuff.UpdateMachinePoolStringSetting();
 
                 SocketStuff.InvalidKeyFound = false;
-                Common.ReopenSocketDueToReadError = true;
+                InitAndCleanup.ReopenSocketDueToReadError = true;
                 Common.ReopenSockets(true);
-                Common.SendMachineMatrix();
+                MachineStuff.SendMachineMatrix();
 
                 Setting.Values.PauseInstantSaving = false;
                 Setting.Values.SaveSettings();
@@ -325,9 +327,9 @@ namespace MouseWithoutBorders.Class
                 Setting.Values.PauseInstantSaving = true;
 
                 Setting.Values.EasyMouse = (int)EasyMouseOption.Enable;
-                Common.ClearComputerMatrix();
-                Setting.Values.MyKey = Common.MyKey = Common.CreateRandomKey();
-                Common.GeneratedKey = true;
+                MachineStuff.ClearComputerMatrix();
+                Setting.Values.MyKey = Encryption.MyKey = Encryption.CreateRandomKey();
+                Encryption.GeneratedKey = true;
 
                 Setting.Values.PauseInstantSaving = false;
                 Setting.Values.SaveSettings();
@@ -338,7 +340,7 @@ namespace MouseWithoutBorders.Class
             public void Reconnect()
             {
                 SocketStuff.InvalidKeyFound = false;
-                Common.ReopenSocketDueToReadError = true;
+                InitAndCleanup.ReopenSocketDueToReadError = true;
                 Common.ReopenSockets(true);
 
                 for (int i = 0; i < 10; i++)
@@ -352,7 +354,7 @@ namespace MouseWithoutBorders.Class
                     Common.MMSleep(0.2);
                 }
 
-                Common.SendMachineMatrix();
+                MachineStuff.SendMachineMatrix();
             }
 
             public void Shutdown()
@@ -395,7 +397,7 @@ namespace MouseWithoutBorders.Class
             using var asyncFlowControl = ExecutionContext.SuppressFlow();
 
             Common.InputCallbackThreadID = Thread.CurrentThread.ManagedThreadId;
-            while (!Common.InitDone)
+            while (!InitAndCleanup.InitDone)
             {
                 Thread.Sleep(100);
             }
@@ -429,7 +431,7 @@ namespace MouseWithoutBorders.Class
                 Logger.Log(e);
             }
 
-            Common.StartMouseWithoutBordersService();
+            Service.StartMouseWithoutBordersService();
         }
 
         internal static string User { get; set; }

@@ -35,6 +35,7 @@ namespace winrt::PowerToys::Interop::implementation
         static hstring RegistryPreviewTriggerEvent();
         static hstring MeasureToolTriggerEvent();
         static hstring GcodePreviewResizeEvent();
+        static hstring BgcodePreviewResizeEvent();
         static hstring QoiPreviewResizeEvent();
         static hstring DevFilesPreviewResizeEvent();
         static hstring MarkdownPreviewResizeEvent();
@@ -50,6 +51,7 @@ namespace winrt::PowerToys::Interop::implementation
         static hstring WorkspacesLaunchEditorEvent();
         static hstring WorkspacesHotkeyEvent();
         static hstring PowerToysRunnerTerminateSettingsEvent();
+        static hstring ShowCmdPalEvent();
     };
 }
 

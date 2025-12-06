@@ -3,9 +3,6 @@ variables:
     value: false
   - name: EnablePipelineCache
     value: true
-  - ${{ if eq(parameters.enableMsBuildCaching, true) }}:
-    - name: EnablePipelineCache
-      value: true
 
 parameters:
   - name: buildPlatforms
@@ -16,6 +13,9 @@ parameters:
   - name: enableMsBuildCaching
     type: boolean
     default: false
+  - name: msBuildCacheIsReadOnly
+    type: boolean
+    default: true
   - name: runTests
     type: boolean
     default: true
@@ -36,20 +36,10 @@ parameters:
     default: false
 
 stages:
-  # Allow manual builds to skip pre-check
-  - ${{ if ne(variables['Build.Reason'], 'Manual') }}:
-    - stage: Precheck
-      jobs:
-        - template: job-ci-precheck.yml
-
   - ${{ each platform in parameters.buildPlatforms }}:
     - stage: Build_${{ platform }}
       displayName: Build ${{ platform }}
-      ${{ if ne(variables['Build.Reason'], 'Manual') }}:
-        dependsOn: [Precheck]
-        condition: and(succeeded(), ne(dependencies.Precheck.outputs['Precheck.verifyBuildRequest.skipBuild'], 'Yes'))
-      ${{ else }}:
-        dependsOn: []
+      dependsOn: []
       jobs:
         - template: job-build-project.yml
           parameters:
@@ -65,21 +55,11 @@ stages:
             buildConfigurations: [Release]
             enablePackageCaching: true
             enableMsBuildCaching: ${{ parameters.enableMsBuildCaching }}
+            msBuildCacheIsReadOnly: ${{ parameters.msBuildCacheIsReadOnly }}
             runTests: ${{ parameters.runTests }}
             useVSPreview: ${{ parameters.useVSPreview }}
             useLatestWinAppSDK: ${{ parameters.useLatestWinAppSDK }}
             ${{ if eq(parameters.useLatestWinAppSDK, true) }}:
               winAppSDKVersionNumber: ${{ parameters.winAppSDKVersionNumber }}
               useExperimentalVersion: ${{ parameters.useExperimentalVersion }}
-
-    - ${{ if eq(parameters.runTests, true) }}:
-      - stage: Test_${{ platform }}
-        displayName: Test ${{ platform }}
-        dependsOn:
-          - Build_${{platform}}
-        jobs:
-          - template: job-test-project.yml
-            parameters:
-              platform: ${{ platform }}
-              configuration: Release
-              useLatestWebView2: ${{ parameters.useLatestWebView2 }}
+            timeoutInMinutes: 90

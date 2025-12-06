@@ -32,6 +32,7 @@ namespace PowerToys
             static String RegistryPreviewTriggerEvent();
             static String MeasureToolTriggerEvent();
             static String GcodePreviewResizeEvent();
+            static String BgcodePreviewResizeEvent();
             static String QoiPreviewResizeEvent();
             static String DevFilesPreviewResizeEvent();
             static String MarkdownPreviewResizeEvent();
@@ -47,6 +48,7 @@ namespace PowerToys
             static String WorkspacesLaunchEditorEvent();
             static String WorkspacesHotkeyEvent();
             static String PowerToysRunnerTerminateSettingsEvent();
+            static String ShowCmdPalEvent();
         }
     }
 }

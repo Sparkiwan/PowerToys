@@ -193,7 +193,7 @@ namespace PowerLauncher
 
             // Call RegisterHotKey only after a window handle can be used, so that a global hotkey can be registered.
             _viewModel.RegisterHotkey(_hwndSource.Handle);
-            if (OSVersionHelper.IsWindows11())
+            if (OSVersionHelper.IsGreaterThanWindows11_21H2())
             {
                 // ResizeMode="NoResize" removes rounded corners. So force them to rounded.
                 IntPtr hWnd = new WindowInteropHelper(GetWindow(this)).EnsureHandle();
@@ -204,6 +204,7 @@ namespace PowerLauncher
             else
             {
                 // On Windows10 ResizeMode="NoResize" removes the border so we add a new one.
+                // Also on 22000 it crashes due to DWMWA_WINDOW_CORNER_PREFERENCE https://github.com/microsoft/PowerToys/issues/36558
                 MainBorder.BorderThickness = new System.Windows.Thickness(0.5);
             }
         }
@@ -328,7 +329,7 @@ namespace PowerLauncher
             var result = ((FrameworkElement)e.OriginalSource).DataContext;
             if (result != null)
             {
-                // This may be null if the tapped item was one of the context buttons (run as admin etc).
+                // This may be null if the tapped item was one of the context buttons (run as admin, etc.).
                 if (result is ResultViewModel resultVM)
                 {
                     _viewModel.Results.SelectedItem = resultVM;

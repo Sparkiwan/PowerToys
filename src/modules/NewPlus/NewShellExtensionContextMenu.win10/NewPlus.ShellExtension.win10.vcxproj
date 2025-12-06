@@ -9,7 +9,7 @@
     <Keyword>Win32Proj</Keyword>
     <ProjectGuid>{0db0f63a-d2f8-4da3-a650-2d0b8724218e}</ProjectGuid>
     <RootNamespace>NewPlusShellExtensionWin10</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.22621.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration">
@@ -46,7 +46,7 @@
       <PreprocessorDefinitions>_DEBUG;NEWPLUSSHELLEXTENSIONWIN10_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
-      <AdditionalIncludeDirectories>..\..\..\common\Telemetry;..\..\;..\..\..\;%(AdditionalIncludeDirectories);..\NewShellExtensionContextMenu</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\common\Telemetry;..\..\;..\..\..\;%(AdditionalIncludeDirectories);..\NewShellExtensionContextMenu;$(MSBuildThisFileDirectory)</AdditionalIncludeDirectories>
       <CompileAsWinRT>false</CompileAsWinRT>
       <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
@@ -67,7 +67,7 @@
       <PreprocessorDefinitions>NDEBUG;NEWPLUSSHELLEXTENSIONWIN10_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
-      <AdditionalIncludeDirectories>..\..\..\common\Telemetry;..\..\;..\..\..\;%(AdditionalIncludeDirectories);..\NewShellExtensionContextMenu</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\common\Telemetry;..\..\;..\..\..\;%(AdditionalIncludeDirectories);..\NewShellExtensionContextMenu;$(MSBuildThisFileDirectory)</AdditionalIncludeDirectories>
       <CompileAsWinRT>false</CompileAsWinRT>
       <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
@@ -83,6 +83,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="..\NewShellExtensionContextMenu\constants.h" />
+    <ClInclude Include="..\NewShellExtensionContextMenu\helpers_filesystem.h" />
+    <ClInclude Include="..\NewShellExtensionContextMenu\helpers_variables.h" />
     <ClInclude Include="..\NewShellExtensionContextMenu\new_utilities.h" />
     <ClInclude Include="..\NewShellExtensionContextMenu\settings.h" />
     <ClInclude Include="..\NewShellExtensionContextMenu\shell_context_sub_menu.h" />
@@ -90,6 +92,7 @@
     <ClInclude Include="..\NewShellExtensionContextMenu\template_folder.h" />
     <ClInclude Include="..\NewShellExtensionContextMenu\template_item.h" />
     <ClInclude Include="..\NewShellExtensionContextMenu\trace.h" />
+    <ClInclude Include="..\NewShellExtensionContextMenu\Helpers.h" />
     <ClInclude Include="dll_main.h" />
     <ClInclude Include="Generated Files\resource.h" />
     <ClInclude Include="pch.h" />
@@ -97,6 +100,7 @@
     <ClInclude Include="shell_context_menu_win10.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\NewShellExtensionContextMenu\Helpers.cpp" />
     <ClCompile Include="..\NewShellExtensionContextMenu\new_utilities.cpp" />
     <ClCompile Include="..\NewShellExtensionContextMenu\powertoys_module.cpp" />
     <ClCompile Include="..\NewShellExtensionContextMenu\settings.cpp" />

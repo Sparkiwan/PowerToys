@@ -13,7 +13,6 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-
 using global::PowerToys.GPOWrapper;
 using ManagedCommon;
 using Microsoft.PowerToys.Settings.UI.Helpers;
@@ -21,6 +20,7 @@ using Microsoft.PowerToys.Settings.UI.Library;
 using Microsoft.PowerToys.Settings.UI.Library.Helpers;
 using Microsoft.PowerToys.Settings.UI.Library.Interfaces;
 using Microsoft.PowerToys.Settings.UI.Library.ViewModels.Commands;
+using Microsoft.PowerToys.Settings.UI.SerializationContext;
 using Microsoft.UI;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml.Media;
@@ -29,8 +29,10 @@ using Windows.ApplicationModel.DataTransfer;
 
 namespace Microsoft.PowerToys.Settings.UI.ViewModels
 {
-    public class MouseWithoutBordersViewModel : Observable, IDisposable
+    public partial class MouseWithoutBordersViewModel : PageViewModelBase
     {
+        protected override string ModuleName => MouseWithoutBordersSettings.ModuleName;
+
         // These should be in the same order as the ComboBoxItems in MouseWithoutBordersPage.xaml switch machine shortcut options
         private readonly int[] _switchBetweenMachineShortcutOptions =
         {
@@ -41,19 +43,21 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
 
         private readonly Lock _machineMatrixStringLock = new();
 
+        private bool _disposed;
+
         private static readonly Dictionary<SocketStatus, Brush> StatusColors = new Dictionary<SocketStatus, Brush>()
-{
-    { SocketStatus.NA, new SolidColorBrush(ColorHelper.FromArgb(0, 0x71, 0x71, 0x71)) },
-    { SocketStatus.Resolving, new SolidColorBrush(Colors.Yellow) },
-    { SocketStatus.Connecting, new SolidColorBrush(Colors.Orange) },
-    { SocketStatus.Handshaking, new SolidColorBrush(Colors.Blue) },
-    { SocketStatus.Error, new SolidColorBrush(Colors.Red) },
-    { SocketStatus.ForceClosed, new SolidColorBrush(Colors.Purple) },
-    { SocketStatus.InvalidKey, new SolidColorBrush(Colors.Brown) },
-    { SocketStatus.Timeout, new SolidColorBrush(Colors.Pink) },
-    { SocketStatus.SendError, new SolidColorBrush(Colors.Maroon) },
-    { SocketStatus.Connected, new SolidColorBrush(Colors.Green) },
-};
+        {
+            { SocketStatus.NA, new SolidColorBrush(ColorHelper.FromArgb(0, 0x71, 0x71, 0x71)) },
+            { SocketStatus.Resolving, new SolidColorBrush(Colors.Yellow) },
+            { SocketStatus.Connecting, new SolidColorBrush(Colors.Orange) },
+            { SocketStatus.Handshaking, new SolidColorBrush(Colors.Blue) },
+            { SocketStatus.Error, new SolidColorBrush(Colors.Red) },
+            { SocketStatus.ForceClosed, new SolidColorBrush(Colors.Purple) },
+            { SocketStatus.InvalidKey, new SolidColorBrush(Colors.Brown) },
+            { SocketStatus.Timeout, new SolidColorBrush(Colors.Pink) },
+            { SocketStatus.SendError, new SolidColorBrush(Colors.Maroon) },
+            { SocketStatus.Connected, new SolidColorBrush(Colors.Green) },
+        };
 
         private bool _connectFieldsVisible;
 
@@ -277,7 +281,7 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
 
         private static VisualStudio.Threading.AsyncSemaphore _ipcSemaphore = new VisualStudio.Threading.AsyncSemaphore(1);
 
-        private sealed class SyncHelper : IDisposable
+        private sealed partial class SyncHelper : IDisposable
         {
             public SyncHelper(NamedPipeClientStream stream)
             {
@@ -542,6 +546,20 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             // Special policies
             _policyDefinedIpMappingRulesGPOData = GPOWrapper.GetConfiguredMwbPolicyDefinedIpMappingRules();
             _policyDefinedIpMappingRulesIsGPOConfigured = !string.IsNullOrWhiteSpace(_policyDefinedIpMappingRulesGPOData);
+        }
+
+        public override Dictionary<string, HotkeySettings[]> GetAllHotkeySettings()
+        {
+            var hotkeysDict = new Dictionary<string, HotkeySettings[]>
+            {
+                [ModuleName] = [
+                    ToggleEasyMouseShortcut,
+                    LockMachinesShortcut,
+                    HotKeySwitch2AllPC,
+                    ReconnectShortcut],
+            };
+
+            return hotkeysDict;
         }
 
         private void LoadViewModelFromSettings(MouseWithoutBordersSettings moduleSettings)
@@ -886,6 +904,43 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             }
         }
 
+        private string _easyMouseIgnoredFullscreenAppsString;
+
+        public string EasyMouseFullscreenSwitchBlockExcludedApps
+        {
+            // Convert the list of excluded apps retrieved from the settings
+            // to a single string that can be displayed in the bound textbox
+            get
+            {
+                if (_easyMouseIgnoredFullscreenAppsString == null)
+                {
+                    var excludedApps = Settings.Properties.EasyMouseFullscreenSwitchBlockExcludedApps.Value;
+                    _easyMouseIgnoredFullscreenAppsString = excludedApps.Count == 0 ? string.Empty : string.Join('\r', excludedApps);
+                }
+
+                return _easyMouseIgnoredFullscreenAppsString;
+            }
+
+            set
+            {
+                if (EasyMouseFullscreenSwitchBlockExcludedApps == value)
+                {
+                    return;
+                }
+
+                _easyMouseIgnoredFullscreenAppsString = value;
+
+                var ignoredAppsSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                if (value != string.Empty)
+                {
+                    ignoredAppsSet.UnionWith(value.Split('\r', StringSplitOptions.RemoveEmptyEntries));
+                }
+
+                Settings.Properties.EasyMouseFullscreenSwitchBlockExcludedApps.Value = ignoredAppsSet;
+                NotifyPropertyChanged();
+            }
+        }
+
         public bool CardForName2IpSettingIsEnabled => _disableUserDefinedIpMappingRulesIsGPOConfigured == false;
 
         public bool ShowPolicyConfiguredInfoForName2IPSetting => _disableUserDefinedIpMappingRulesIsGPOConfigured && IsEnabled;
@@ -987,6 +1042,30 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             }
         }
 
+        public bool EasyMouseEnabled => (EasyMouseOption)EasyMouseOptionIndex != EasyMouseOption.Disable;
+
+        public bool IsEasyMouseBlockingOnFullscreenEnabled =>
+            EasyMouseEnabled && DisableEasyMouseWhenForegroundWindowIsFullscreen;
+
+        public bool DisableEasyMouseWhenForegroundWindowIsFullscreen
+        {
+            get
+            {
+                return Settings.Properties.DisableEasyMouseWhenForegroundWindowIsFullscreen;
+            }
+
+            set
+            {
+                if (Settings.Properties.DisableEasyMouseWhenForegroundWindowIsFullscreen == value)
+                {
+                    return;
+                }
+
+                Settings.Properties.DisableEasyMouseWhenForegroundWindowIsFullscreen = value;
+                NotifyPropertyChanged();
+            }
+        }
+
         public HotkeySettings ToggleEasyMouseShortcut
         {
             get => Settings.Properties.ToggleEasyMouseShortcut;
@@ -997,6 +1076,7 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
                 {
                     Settings.Properties.ToggleEasyMouseShortcut = value ?? MouseWithoutBordersProperties.DefaultHotKeyToggleEasyMouse;
                     NotifyPropertyChanged();
+                    NotifyModuleUpdatedSettings();
                 }
             }
         }
@@ -1012,6 +1092,7 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
                     Settings.Properties.LockMachineShortcut = value;
                     Settings.Properties.LockMachineShortcut = value ?? MouseWithoutBordersProperties.DefaultHotKeyLockMachine;
                     NotifyPropertyChanged();
+                    NotifyModuleUpdatedSettings();
                 }
             }
         }
@@ -1027,6 +1108,7 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
                     Settings.Properties.ReconnectShortcut = value;
                     Settings.Properties.ReconnectShortcut = value ?? MouseWithoutBordersProperties.DefaultHotKeyReconnect;
                     NotifyPropertyChanged();
+                    NotifyModuleUpdatedSettings();
                 }
             }
         }
@@ -1042,6 +1124,7 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
                     Settings.Properties.Switch2AllPCShortcut = value;
                     Settings.Properties.Switch2AllPCShortcut = value ?? MouseWithoutBordersProperties.DefaultHotKeySwitch2AllPC;
                     NotifyPropertyChanged();
+                    NotifyModuleUpdatedSettings();
                 }
             }
         }
@@ -1102,7 +1185,7 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
 
         private IndexedObservableCollection<DeviceViewModel> machineMatrixString;
 
-        public class DeviceViewModel : Observable
+        public partial class DeviceViewModel : Observable
         {
             public string Name { get; set; }
 
@@ -1200,11 +1283,11 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
         private void NotifyModuleUpdatedSettings()
         {
             SendConfigMSG(
-        string.Format(
-        CultureInfo.InvariantCulture,
-        "{{ \"powertoys\": {{ \"{0}\": {1} }} }}",
-        MouseWithoutBordersSettings.ModuleName,
-        JsonSerializer.Serialize(Settings)));
+                string.Format(
+                CultureInfo.InvariantCulture,
+                "{{ \"powertoys\": {{ \"{0}\": {1} }} }}",
+                MouseWithoutBordersSettings.ModuleName,
+                JsonSerializer.Serialize(Settings, SourceGenerationContextContext.Default.MouseWithoutBordersSettings)));
         }
 
         public void NotifyUpdatedSettings()
@@ -1240,9 +1323,48 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             Clipboard.SetContent(data);
         }
 
-        public void Dispose()
+        protected override void Dispose(bool disposing)
         {
-            GC.SuppressFinalize(this);
+            if (!_disposed)
+            {
+                if (disposing)
+                {
+                    // Cancel the cancellation token source
+                    _cancellationTokenSource?.Cancel();
+                    _cancellationTokenSource?.Dispose();
+
+                    // Wait for the machine polling task to complete
+                    try
+                    {
+                        _machinePollingThreadTask?.Wait(TimeSpan.FromSeconds(1));
+                    }
+                    catch (AggregateException)
+                    {
+                        // Task was cancelled, which is expected
+                    }
+
+                    // Dispose the named pipe stream
+                    try
+                    {
+                        syncHelperStream?.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogError($"Error disposing sync helper stream: {ex}");
+                    }
+                    finally
+                    {
+                        syncHelperStream = null;
+                    }
+
+                    // Dispose the semaphore
+                    _ipcSemaphore?.Dispose();
+                }
+
+                _disposed = true;
+            }
+
+            base.Dispose(disposing);
         }
 
         internal void UninstallService()

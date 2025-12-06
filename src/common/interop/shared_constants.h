@@ -92,6 +92,9 @@ namespace CommonSharedConstants
     // Path to the event used by GcodePreviewHandler
     const wchar_t GCODE_PREVIEW_RESIZE_EVENT[] = L"Local\\PowerToysGcodePreviewResizeEvent-6ff1f9bd-ccbd-4b24-a79f-40a34fb0317d";
 
+    // Path to the event used by BgcodePreviewHandler
+    const wchar_t BGCODE_PREVIEW_RESIZE_EVENT[] = L"Local\\PowerToysBgcodePreviewResizeEvent-1a76a553-919a-49e0-8179-776582d8e476";
+
     // Path to the event used by QoiPreviewHandler
     const wchar_t QOI_PREVIEW_RESIZE_EVENT[] = L"Local\\PowerToysQoiPreviewResizeEvent-579518d1-8c8b-494f-8143-04f43d761ead";
 
@@ -127,6 +130,10 @@ namespace CommonSharedConstants
     // Path to the events used by ZoomIt
     const wchar_t ZOOMIT_REFRESH_SETTINGS_EVENT[] = L"Local\\PowerToysZoomIt-RefreshSettingsEvent-f053a563-d519-4b0d-8152-a54489c13324";
     const wchar_t ZOOMIT_EXIT_EVENT[] = L"Local\\PowerToysZoomIt-ExitEvent-36641ce6-df02-4eac-abea-a3fbf9138220";
+
+    // used from quick access window
+    const wchar_t CMDPAL_SHOW_EVENT[] = L"Local\\PowerToysCmdPal-ShowEvent-62336fcd-8611-4023-9b30-091a6af4cc5a";
+    const wchar_t CMDPAL_EXIT_EVENT[] = L"Local\\PowerToysCmdPal-ExitEvent-eb73f6be-3f22-4b36-aee3-62924ba40bfd";
 
     // Max DWORD for key code to disable keys.
     const DWORD VK_DISABLED = 0x100;

@@ -3,10 +3,12 @@
 // See the LICENSE file in the project root for more information.
 
 using System.ClientModel;
+using System.Threading;
 using System.Threading.Tasks;
 
 using AdvancedPaste.Helpers;
 using AdvancedPaste.Models;
+using AdvancedPaste.Services;
 using ManagedCommon;
 using OpenAI.Moderations;
 
@@ -18,12 +20,21 @@ public sealed class PromptModerationService(IAICredentialsProvider aiCredentials
 
     private readonly IAICredentialsProvider _aiCredentialsProvider = aiCredentialsProvider;
 
-    public async Task ValidateAsync(string fullPrompt)
+    public async Task ValidateAsync(string fullPrompt, CancellationToken cancellationToken)
     {
         try
         {
-            ModerationClient moderationClient = new(ModelName, _aiCredentialsProvider.Key);
-            var moderationClientResult = await moderationClient.ClassifyTextAsync(fullPrompt);
+            _aiCredentialsProvider.Refresh();
+            var apiKey = _aiCredentialsProvider.GetKey()?.Trim() ?? string.Empty;
+
+            if (string.IsNullOrEmpty(apiKey))
+            {
+                Logger.LogWarning("Skipping OpenAI moderation because no credential is configured.");
+                return;
+            }
+
+            ModerationClient moderationClient = new(ModelName, apiKey);
+            var moderationClientResult = await moderationClient.ClassifyTextAsync(fullPrompt, cancellationToken);
             var moderationResult = moderationClientResult.Value;
 
             Logger.LogDebug($"{nameof(PromptModerationService)}.{nameof(ValidateAsync)} complete; {nameof(moderationResult.Flagged)}={moderationResult.Flagged}");

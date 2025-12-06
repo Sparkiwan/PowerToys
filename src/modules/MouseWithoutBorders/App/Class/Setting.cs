@@ -33,6 +33,7 @@ using MouseWithoutBorders.Core;
 using Settings.UI.Library.Attributes;
 
 using Lock = System.Threading.Lock;
+using SettingsHelper = Microsoft.PowerToys.Settings.UI.Library.Utilities.Helper;
 
 [module: SuppressMessage("Microsoft.Design", "CA1031:DoNotCatchGeneralExceptionTypes", Scope = "member", Target = "MouseWithoutBorders.Properties.Setting.Values.#LoadIntSetting(System.String,System.Int32)", Justification = "Dotnet port with style preservation")]
 [module: SuppressMessage("Microsoft.Design", "CA1031:DoNotCatchGeneralExceptionTypes", Scope = "member", Target = "MouseWithoutBorders.Properties.Setting.Values.#SaveSetting(System.String,System.Object)", Justification = "Dotnet port with style preservation")]
@@ -102,28 +103,28 @@ namespace MouseWithoutBorders.Class
                         if (!Enumerable.SequenceEqual(last_properties.MachineMatrixString, _settings.Properties.MachineMatrixString))
                         {
                             _properties.MachineMatrixString = _settings.Properties.MachineMatrixString;
-                            Common.MachineMatrix = null; // Forces read next time it's needed.
+                            MachineStuff.MachineMatrix = null; // Forces read next time it's needed.
                             shouldSendMachineMatrix = true;
                         }
 
                         var shouldReopenSockets = false;
 
-                        if (Common.MyKey != _properties.SecurityKey.Value)
+                        if (Encryption.MyKey != _properties.SecurityKey.Value)
                         {
-                            Common.MyKey = _properties.SecurityKey.Value;
+                            Encryption.MyKey = _properties.SecurityKey.Value;
                             shouldReopenSockets = true;
                         }
 
                         if (shouldReopenSockets)
                         {
                             SocketStuff.InvalidKeyFound = false;
-                            Common.ReopenSocketDueToReadError = true;
+                            InitAndCleanup.ReopenSocketDueToReadError = true;
                             Common.ReopenSockets(true);
                         }
 
                         if (shouldSendMachineMatrix)
                         {
-                            Common.SendMachineMatrix();
+                            MachineStuff.SendMachineMatrix();
                             shouldSaveNewSettingsValues = true;
                         }
 
@@ -193,7 +194,7 @@ namespace MouseWithoutBorders.Class
         {
             _settingsUtils = new SettingsUtils();
 
-            _watcher = Helper.GetFileWatcher("MouseWithoutBorders", "settings.json", () =>
+            _watcher = SettingsHelper.GetFileWatcher("MouseWithoutBorders", "settings.json", () =>
             {
                 try
                 {
@@ -413,6 +414,44 @@ namespace MouseWithoutBorders.Class
             }
         }
 
+        internal bool DisableEasyMouseWhenForegroundWindowIsFullscreen
+        {
+            get
+            {
+                lock (_loadingSettingsLock)
+                {
+                    return _properties.DisableEasyMouseWhenForegroundWindowIsFullscreen;
+                }
+            }
+
+            set
+            {
+                lock (_loadingSettingsLock)
+                {
+                    _properties.DisableEasyMouseWhenForegroundWindowIsFullscreen = value;
+                }
+            }
+        }
+
+        internal HashSet<string> EasyMouseFullscreenSwitchBlockExcludedApps
+        {
+            get
+            {
+                lock (_loadingSettingsLock)
+                {
+                    return _properties.EasyMouseFullscreenSwitchBlockExcludedApps.Value;
+                }
+            }
+
+            set
+            {
+                lock (_loadingSettingsLock)
+                {
+                    _properties.EasyMouseFullscreenSwitchBlockExcludedApps.Value = value;
+                }
+            }
+        }
+
         internal string Enc(string st, bool dec, DataProtectionScope protectionScope)
         {
             if (st == null || st.Length < 1)
@@ -450,7 +489,7 @@ namespace MouseWithoutBorders.Class
                     }
                     else
                     {
-                        string randomKey = Common.CreateDefaultKey();
+                        string randomKey = Encryption.CreateDefaultKey();
                         _properties.SecurityKey.Value = randomKey;
 
                         return randomKey;
@@ -1016,8 +1055,13 @@ namespace MouseWithoutBorders.Class
 
                     if (machineId == 0)
                     {
-                        _properties.MachineID.Value = Common.Ran.Next();
-                        machineId = _properties.MachineID.Value;
+                        var newMachineId = Encryption.Ran.Next();
+                        _properties.MachineID.Value = newMachineId;
+                        machineId = newMachineId;
+                        if (!PauseInstantSaving)
+                        {
+                            SaveSettings();
+                        }
                     }
                 }
 
@@ -1029,6 +1073,11 @@ namespace MouseWithoutBorders.Class
                 lock (_loadingSettingsLock)
                 {
                     _properties.MachineID.Value = value;
+                    machineId = value;
+                    if (!PauseInstantSaving)
+                    {
+                        SaveSettings();
+                    }
                 }
             }
         }

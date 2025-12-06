@@ -10,15 +10,19 @@ using AdvancedPaste.Models;
 using AdvancedPaste.ViewModels;
 using CommunityToolkit.Mvvm.Input;
 using ManagedCommon;
+using Microsoft.PowerToys.Settings.UI.Library;
 using Microsoft.PowerToys.Telemetry;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 
 namespace AdvancedPaste.Controls
 {
     public sealed partial class PromptBox : Microsoft.UI.Xaml.Controls.UserControl
     {
         public OptionsViewModel ViewModel { get; private set; }
+
+        private bool _syncingProviderSelection;
 
         public static readonly DependencyProperty PlaceholderTextProperty = DependencyProperty.Register(
             nameof(PlaceholderText),
@@ -44,6 +48,18 @@ namespace AdvancedPaste.Controls
             set => SetValue(FooterProperty, value);
         }
 
+        public static readonly DependencyProperty ModelSelectorProperty = DependencyProperty.Register(
+            nameof(ModelSelector),
+            typeof(object),
+            typeof(PromptBox),
+            new PropertyMetadata(defaultValue: null));
+
+        public object ModelSelector
+        {
+            get => GetValue(ModelSelectorProperty);
+            set => SetValue(ModelSelectorProperty, value);
+        }
+
         public PromptBox()
         {
             InitializeComponent();
@@ -55,10 +71,15 @@ namespace AdvancedPaste.Controls
 
         private void ViewModel_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(ViewModel.Busy) || e.PropertyName == nameof(ViewModel.PasteActionError))
+            if (e.PropertyName is nameof(ViewModel.IsBusy) or nameof(ViewModel.PasteActionError))
             {
-                var state = ViewModel.Busy ? "LoadingState" : ViewModel.PasteActionError.HasText ? "ErrorState" : "DefaultState";
+                var state = ViewModel.IsBusy ? "LoadingState" : ViewModel.PasteActionError.HasText ? "ErrorState" : "DefaultState";
                 VisualStateManager.GoToState(this, state, true);
+            }
+
+            if (e.PropertyName is nameof(ViewModel.ActiveAIProvider) or nameof(ViewModel.AIProviders))
+            {
+                SyncProviderSelection();
             }
         }
 
@@ -73,10 +94,14 @@ namespace AdvancedPaste.Controls
         private void Grid_Loaded(object sender, RoutedEventArgs e)
         {
             InputTxtBox.Focus(FocusState.Programmatic);
+            SyncProviderSelection();
         }
 
         [RelayCommand]
         private async Task GenerateCustomAIAsync() => await ViewModel.ExecuteCustomAIFormatFromCurrentQueryAsync(PasteActionSource.PromptBox);
+
+        [RelayCommand]
+        private async Task CancelPasteActionAsync() => await ViewModel.CancelPasteActionAsync();
 
         private async void InputTxtBox_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
         {
@@ -107,6 +132,58 @@ namespace AdvancedPaste.Controls
         internal void IsLoading(bool loading)
         {
             Loader.IsLoading = loading;
+        }
+
+        private void SyncProviderSelection()
+        {
+            if (AIProviderListView is null)
+            {
+                return;
+            }
+
+            try
+            {
+                _syncingProviderSelection = true;
+                AIProviderListView.SelectedItem = ViewModel.ActiveAIProvider;
+            }
+            finally
+            {
+                _syncingProviderSelection = false;
+            }
+        }
+
+        private void AIProviderFlyout_Opened(object sender, object e)
+        {
+            SyncProviderSelection();
+        }
+
+        private async void AIProviderListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_syncingProviderSelection)
+            {
+                return;
+            }
+
+            var flyout = FlyoutBase.GetAttachedFlyout(AIProviderButton);
+
+            if (AIProviderListView.SelectedItem is not PasteAIProviderDefinition provider)
+            {
+                return;
+            }
+
+            if (string.Equals(ViewModel.ActiveAIProvider?.Id, provider.Id, StringComparison.OrdinalIgnoreCase))
+            {
+                flyout?.Hide();
+                return;
+            }
+
+            if (ViewModel.SetActiveProviderCommand.CanExecute(provider))
+            {
+                await ViewModel.SetActiveProviderCommand.ExecuteAsync(provider);
+                SyncProviderSelection();
+            }
+
+            flyout?.Hide();
         }
     }
 }

@@ -18,6 +18,8 @@ namespace Microsoft.PowerToys.Settings.UI.Library
             ActivationShortcut = DefaultActivationShortcut;
             AlwaysRunNotElevated = new BoolProperty(true);
             CloseAfterLosingFocus = new BoolProperty(false);
+            ConfirmFileDelete = new BoolProperty(true);
+            EnableSpaceToActivate = new BoolProperty(true); // Toggle is ON by default for new users. No impact on existing users.
         }
 
         public HotkeySettings ActivationShortcut { get; set; }
@@ -26,6 +28,10 @@ namespace Microsoft.PowerToys.Settings.UI.Library
 
         public BoolProperty CloseAfterLosingFocus { get; set; }
 
-        public override string ToString() => JsonSerializer.Serialize(this);
+        public BoolProperty ConfirmFileDelete { get; set; }
+
+        public BoolProperty EnableSpaceToActivate { get; set; }
+
+        public override string ToString() => JsonSerializer.Serialize(this, SettingsSerializationContext.Default.PeekProperties);
     }
 }

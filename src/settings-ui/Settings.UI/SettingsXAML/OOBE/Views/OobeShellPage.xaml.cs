@@ -93,6 +93,11 @@ namespace Microsoft.PowerToys.Settings.UI.OOBE.Views
                 ModuleName = "CmdNotFound",
                 IsNew = false,
             });
+            Modules.Insert((int)PowerToysModules.CmdPal, new OobePowerToysModule()
+            {
+                ModuleName = "CmdPal",
+                IsNew = true,
+            });
             Modules.Insert((int)PowerToysModules.ColorPicker, new OobePowerToysModule()
             {
                 ModuleName = "ColorPicker",
@@ -132,6 +137,11 @@ namespace Microsoft.PowerToys.Settings.UI.OOBE.Views
             {
                 ModuleName = "KBM",
                 IsNew = false,
+            });
+            Modules.Insert((int)PowerToysModules.LightSwitch, new OobePowerToysModule()
+            {
+                ModuleName = "LightSwitch",
+                IsNew = true,
             });
             Modules.Insert((int)PowerToysModules.MouseUtils, new OobePowerToysModule()
             {
@@ -273,6 +283,7 @@ namespace Microsoft.PowerToys.Settings.UI.OOBE.Views
                     case "AlwaysOnTop": NavigationFrame.Navigate(typeof(OobeAlwaysOnTop)); break;
                     case "Awake": NavigationFrame.Navigate(typeof(OobeAwake)); break;
                     case "CmdNotFound": NavigationFrame.Navigate(typeof(OobeCmdNotFound)); break;
+                    case "CmdPal": NavigationFrame.Navigate(typeof(OobeCmdPal)); break;
                     case "ColorPicker": NavigationFrame.Navigate(typeof(OobeColorPicker)); break;
                     case "CropAndLock": NavigationFrame.Navigate(typeof(OobeCropAndLock)); break;
                     case "EnvironmentVariables": NavigationFrame.Navigate(typeof(OobeEnvironmentVariables)); break;
@@ -281,6 +292,7 @@ namespace Microsoft.PowerToys.Settings.UI.OOBE.Views
                     case "Run": NavigationFrame.Navigate(typeof(OobeRun)); break;
                     case "ImageResizer": NavigationFrame.Navigate(typeof(OobeImageResizer)); break;
                     case "KBM": NavigationFrame.Navigate(typeof(OobeKBM)); break;
+                    case "LightSwitch": NavigationFrame.Navigate(typeof(OobeLightSwitch)); break;
                     case "PowerRename": NavigationFrame.Navigate(typeof(OobePowerRename)); break;
                     case "QuickAccent": NavigationFrame.Navigate(typeof(OobePowerAccent)); break;
                     case "FileExplorer": NavigationFrame.Navigate(typeof(OobeFileExplorer)); break;

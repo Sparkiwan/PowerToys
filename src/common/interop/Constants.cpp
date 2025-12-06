@@ -127,6 +127,10 @@ namespace winrt::PowerToys::Interop::implementation
     {
         return CommonSharedConstants::GCODE_PREVIEW_RESIZE_EVENT;
     }
+    hstring Constants::BgcodePreviewResizeEvent()
+    {
+        return CommonSharedConstants::BGCODE_PREVIEW_RESIZE_EVENT;
+    }
     hstring Constants::QoiPreviewResizeEvent()
     {
         return CommonSharedConstants::QOI_PREVIEW_RESIZE_EVENT;
@@ -186,5 +190,9 @@ namespace winrt::PowerToys::Interop::implementation
     hstring Constants::PowerToysRunnerTerminateSettingsEvent()
     {
         return CommonSharedConstants::TERMINATE_SETTINGS_SHARED_EVENT;
+    }
+    hstring Constants::ShowCmdPalEvent()
+    {
+        return CommonSharedConstants::CMDPAL_SHOW_EVENT;
     }
 }

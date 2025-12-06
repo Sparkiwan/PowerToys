@@ -6,23 +6,40 @@ using System;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-
+using System.Threading.Tasks;
 using PowerToys.Interop;
 
 namespace ManagedCommon
 {
     public static class Logger
     {
-        private static readonly Assembly Assembly = Assembly.GetExecutingAssembly();
-        private static readonly string Version = FileVersionInfo.GetVersionInfo(Assembly.Location).ProductVersion;
-
         private static readonly string Error = "Error";
         private static readonly string Warning = "Warning";
         private static readonly string Info = "Info";
+#if DEBUG
         private static readonly string Debug = "Debug";
+#endif
         private static readonly string TraceFlag = "Trace";
+
+        private static readonly string Version = Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyFileVersionAttribute>()?.Version ?? "Unknown";
+
+        /// <summary>
+        /// Gets the path to the log directory for the current version of the app.
+        /// </summary>
+        public static string CurrentVersionLogDirectoryPath { get; private set; }
+
+        /// <summary>
+        /// Gets the path to the current log file.
+        /// </summary>
+        public static string CurrentLogFile { get; private set; }
+
+        /// <summary>
+        /// Gets the path to the log directory for the app.
+        /// </summary>
+        public static string AppLogDirectoryPath { get; private set; }
 
         /// <summary>
         /// Initializes the logger and sets the path for logging.
@@ -32,89 +49,143 @@ namespace ManagedCommon
         /// <param name="isLocalLow">If the process using Logger is a low-privilege process.</param>
         public static void InitializeLogger(string applicationLogPath, bool isLocalLow = false)
         {
-            if (isLocalLow)
+            string versionedPath = LogDirectoryPath(applicationLogPath, isLocalLow);
+            string basePath = Path.GetDirectoryName(versionedPath);
+
+            if (!Directory.Exists(versionedPath))
             {
-                applicationLogPath = Environment.GetEnvironmentVariable("userprofile") + "\\appdata\\LocalLow\\Microsoft\\PowerToys" + applicationLogPath + "\\" + Version;
-            }
-            else
-            {
-                applicationLogPath = Constants.AppDataPath() + applicationLogPath + "\\" + Version;
+                Directory.CreateDirectory(versionedPath);
             }
 
-            if (!Directory.Exists(applicationLogPath))
-            {
-                Directory.CreateDirectory(applicationLogPath);
-            }
+            AppLogDirectoryPath = basePath;
+            CurrentVersionLogDirectoryPath = versionedPath;
 
-            var logFilePath = Path.Combine(applicationLogPath, "Log_" + DateTime.Now.ToString(@"yyyy-MM-dd", CultureInfo.InvariantCulture) + ".txt");
+            var logFile = "Log_" + DateTime.Now.ToString(@"yyyy-MM-dd", CultureInfo.InvariantCulture) + ".log";
+            var logFilePath = Path.Combine(versionedPath, logFile);
+            CurrentLogFile = logFilePath;
 
             Trace.Listeners.Add(new TextWriterTraceListener(logFilePath));
 
             Trace.AutoFlush = true;
+
+            // Clean up old version log folders
+            Task.Run(() => DeleteOldVersionLogFolders(basePath, versionedPath));
         }
 
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public static void LogError(string message)
+        public static string LogDirectoryPath(string applicationLogPath, bool isLocalLow = false)
         {
-            Log(message, Error);
+            string basePath;
+            if (isLocalLow)
+            {
+                basePath = Environment.GetEnvironmentVariable("userprofile") + "\\appdata\\LocalLow\\Microsoft\\PowerToys" + applicationLogPath;
+            }
+            else
+            {
+                basePath = Constants.AppDataPath() + applicationLogPath;
+            }
+
+            string versionedPath = Path.Combine(basePath, Version);
+            return versionedPath;
         }
 
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public static void LogError(string message, Exception ex)
+        /// <summary>
+        /// Deletes old version log folders, keeping only the current version's folder.
+        /// </summary>
+        /// <param name="basePath">The base path to the log files folder.</param>
+        /// <param name="currentVersionPath">The path to the current version's log folder.</param>
+        private static void DeleteOldVersionLogFolders(string basePath, string currentVersionPath)
+        {
+            try
+            {
+                if (!Directory.Exists(basePath))
+                {
+                    return;
+                }
+
+                var dirs = Directory.GetDirectories(basePath)
+                    .Select(d => new DirectoryInfo(d))
+                    .OrderBy(d => d.CreationTime)
+                    .Where(d => !string.Equals(d.FullName, currentVersionPath, StringComparison.OrdinalIgnoreCase))
+                    .Take(3)
+                    .ToList();
+
+                foreach (var directory in dirs)
+                {
+                    try
+                    {
+                        Directory.Delete(directory.FullName, true);
+                        LogInfo($"Deleted old log directory: {directory.FullName}");
+                        Task.Delay(500).Wait();
+                    }
+                    catch (Exception ex)
+                    {
+                        LogError($"Failed to delete old log directory: {directory.FullName}", ex);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LogError("Error cleaning up old log folders", ex);
+            }
+        }
+
+        public static void LogError(string message, [System.Runtime.CompilerServices.CallerMemberName] string memberName = "", [System.Runtime.CompilerServices.CallerFilePath] string sourceFilePath = "", [System.Runtime.CompilerServices.CallerLineNumber] int sourceLineNumber = 0)
+        {
+            Log(message, Error, memberName, sourceFilePath, sourceLineNumber);
+        }
+
+        public static void LogError(string message, Exception ex, [System.Runtime.CompilerServices.CallerMemberName] string memberName = "", [System.Runtime.CompilerServices.CallerFilePath] string sourceFilePath = "", [System.Runtime.CompilerServices.CallerLineNumber] int sourceLineNumber = 0)
         {
             if (ex == null)
             {
-                Log(message, Error);
+                Log(message, Error, memberName, sourceFilePath, sourceLineNumber);
             }
             else
             {
                 var exMessage =
                     message + Environment.NewLine +
-                    ex.GetType() + ": " + ex.Message + Environment.NewLine;
+                    ex.GetType() + " (" + ex.HResult + "): " + ex.Message + Environment.NewLine;
 
                 if (ex.InnerException != null)
                 {
                     exMessage +=
                         "Inner exception: " + Environment.NewLine +
-                        ex.InnerException.GetType() + ": " + ex.InnerException.Message + Environment.NewLine;
+                        ex.InnerException.GetType() + " (" + ex.InnerException.HResult + "): " + ex.InnerException.Message + Environment.NewLine;
                 }
 
                 exMessage +=
                     "Stack trace: " + Environment.NewLine +
                     ex.StackTrace;
 
-                Log(exMessage, Error);
+                Log(exMessage, Error, memberName, sourceFilePath, sourceLineNumber);
             }
         }
 
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public static void LogWarning(string message)
+        public static void LogWarning(string message, [System.Runtime.CompilerServices.CallerMemberName] string memberName = "", [System.Runtime.CompilerServices.CallerFilePath] string sourceFilePath = "", [System.Runtime.CompilerServices.CallerLineNumber] int sourceLineNumber = 0)
         {
-            Log(message, Warning);
+            Log(message, Warning, memberName, sourceFilePath, sourceLineNumber);
         }
 
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public static void LogInfo(string message)
+        public static void LogInfo(string message, [System.Runtime.CompilerServices.CallerMemberName] string memberName = "", [System.Runtime.CompilerServices.CallerFilePath] string sourceFilePath = "", [System.Runtime.CompilerServices.CallerLineNumber] int sourceLineNumber = 0)
         {
-            Log(message, Info);
+            Log(message, Info, memberName, sourceFilePath, sourceLineNumber);
         }
 
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public static void LogDebug(string message)
+        public static void LogDebug(string message, [System.Runtime.CompilerServices.CallerMemberName] string memberName = "", [System.Runtime.CompilerServices.CallerFilePath] string sourceFilePath = "", [System.Runtime.CompilerServices.CallerLineNumber] int sourceLineNumber = 0)
         {
-            Log(message, Debug);
+#if DEBUG
+            Log(message, Debug, memberName, sourceFilePath, sourceLineNumber);
+#endif
         }
 
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public static void LogTrace()
+        public static void LogTrace([System.Runtime.CompilerServices.CallerMemberName] string memberName = "", [System.Runtime.CompilerServices.CallerFilePath] string sourceFilePath = "", [System.Runtime.CompilerServices.CallerLineNumber] int sourceLineNumber = 0)
         {
-            Log(string.Empty, TraceFlag);
+            Log(string.Empty, TraceFlag, memberName, sourceFilePath, sourceLineNumber);
         }
 
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void Log(string message, string type)
+        private static void Log(string message, string type, string memberName, string sourceFilePath, int sourceLineNumber)
         {
-            Trace.WriteLine("[" + DateTime.Now.TimeOfDay + "] [" + type + "] " + GetCallerInfo());
+            Trace.WriteLine("[" + DateTime.Now.TimeOfDay + "] [" + type + "] " + GetCallerInfo(memberName, sourceFilePath, sourceLineNumber));
             Trace.Indent();
             if (message != string.Empty)
             {
@@ -124,49 +195,27 @@ namespace ManagedCommon
             Trace.Unindent();
         }
 
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static string GetCallerInfo()
+        private static string GetCallerInfo(string memberName, string sourceFilePath, int sourceLineNumber)
         {
-            StackTrace stackTrace = new();
-
-            var callerMethod = GetCallerMethod(stackTrace);
-
-            return $"{callerMethod?.DeclaringType?.Name}::{callerMethod.Name}";
-        }
-
-        private static MethodBase GetCallerMethod(StackTrace stackTrace)
-        {
-            const int topFrame = 3;
-
-            var topMethod = stackTrace.GetFrame(topFrame)?.GetMethod();
+            string callerFileName = "Unknown";
 
             try
             {
-                if (topMethod?.Name == nameof(IAsyncStateMachine.MoveNext) && typeof(IAsyncStateMachine).IsAssignableFrom(topMethod?.DeclaringType))
+                string fileName = Path.GetFileName(sourceFilePath);
+                if (!string.IsNullOrEmpty(fileName))
                 {
-                    // Async method; return actual method as determined by heuristic:
-                    // "Nearest method on stack to async state-machine's MoveNext() in same namespace but in a different type".
-                    // There are tighter ways of determining the actual method, but this is good enough and probably faster.
-                    for (int deepFrame = topFrame + 1; deepFrame < stackTrace.FrameCount; deepFrame++)
-                    {
-                        var deepMethod = stackTrace.GetFrame(deepFrame)?.GetMethod();
-
-                        if (deepMethod?.DeclaringType != topMethod?.DeclaringType && deepMethod?.DeclaringType?.Namespace == topMethod?.DeclaringType?.Namespace)
-                        {
-                            return deepMethod;
-                        }
-                    }
+                    callerFileName = fileName;
                 }
             }
             catch (Exception)
             {
-                // Ignore exceptions in Release. The code above won't throw, but if it does, we don't want to crash the app.
+                callerFileName = "Unknown";
 #if DEBUG
                 throw;
 #endif
             }
 
-            return topMethod;
+            return $"{callerFileName}::{memberName}::{sourceLineNumber}";
         }
     }
 }
